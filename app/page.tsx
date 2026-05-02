@@ -342,7 +342,7 @@ export default function Home() {
       )}
 
       <footer className="mt-10 text-sm">
-        Built by <b>Bhavana Seelam</b>
+        Built by <b>Bhavana Seelam | https://github.com/bhavanaseelam | https://www.linkedin.com/in/bhavana-seelam</b>
       </footer>
     </div>
   );
