@@ -1,65 +1,349 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import axios from "axios";
+import toast from "react-hot-toast";
+import { FaBook } from "react-icons/fa";
+import { motion } from "framer-motion";
 
 export default function Home() {
+  const [subject, setSubject] = useState("");
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const [editingId, setEditingId] = useState("");
+  const [editText, setEditText] = useState("");
+
+  const [aiPlan, setAiPlan] = useState<string[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const [savedPlans, setSavedPlans] = useState<string[][]>([]);
+  const [darkMode, setDarkMode] = useState(false);
+
+  // ---------------- FETCH ----------------
+  const fetchSubjects = async () => {
+    const res = await axios.get("/api/subjects");
+    setSubjects(res.data);
+  };
+
+  useEffect(() => {
+    fetchSubjects();
+
+    const saved = localStorage.getItem("savedPlans");
+    if (saved) setSavedPlans(JSON.parse(saved));
+
+    const current = localStorage.getItem("currentPlan");
+    if (current) setAiPlan(JSON.parse(current));
+  }, []);
+
+  // ---------------- CLEAR PLAN IF NO SUBJECTS ----------------
+  useEffect(() => {
+    if (subjects.length === 0) {
+      setAiPlan([]);
+      localStorage.removeItem("currentPlan");
+    }
+  }, [subjects]);
+
+  // ---------------- AUTO GENERATE PLAN WHEN SUBJECTS CHANGE ----------------
+  useEffect(() => {
+    const autoGenerate = async () => {
+      if (subjects.length === 0) return;
+
+      try {
+        const res = await axios.post("/api/ai", {
+          subjects: subjects.map((s) => s.name),
+        });
+
+        const plans = res.data.result
+          .split("\n")
+          .filter((line: string) => line.trim() !== "")
+          .map((line: string) => line.replace(/^\d+\.\s*/, ""));
+
+        setAiPlan(plans);
+      } catch {
+        const fallback = subjects.map(
+          (s, i) => `${s.name}: Study ${i + 1} hours daily`
+        );
+        setAiPlan(fallback);
+      }
+    };
+
+    autoGenerate();
+  }, [subjects]);
+
+  // ---------------- SAVE CURRENT PLAN ----------------
+  useEffect(() => {
+    if (aiPlan.length > 0) {
+      localStorage.setItem("currentPlan", JSON.stringify(aiPlan));
+    }
+  }, [aiPlan]);
+
+  // ---------------- ADD ----------------
+  const addSubject = async () => {
+    if (!subject) return;
+
+    const exists = subjects.some(
+      (s) => s.name.toLowerCase() === subject.toLowerCase()
+    );
+
+    if (exists) {
+      toast.error("Subject already exists ⚠️");
+      return;
+    }
+
+    setLoading(true);
+    await axios.post("/api/subjects", { name: subject });
+    setSubject("");
+    setLoading(false);
+
+    toast.success("Subject Added 🎉");
+    fetchSubjects();
+  };
+
+  // ---------------- DELETE ----------------
+  const deleteSubject = async (id: string) => {
+    await axios.delete(`/api/subjects?id=${id}`);
+    toast.success("Deleted ❌");
+    fetchSubjects();
+  };
+
+  // ---------------- EDIT ----------------
+  const startEdit = (sub: any) => {
+    setEditingId(sub._id);
+    setEditText(sub.name);
+  };
+
+  const updateSubject = async () => {
+    await axios.put("/api/subjects", {
+      id: editingId,
+      name: editText,
+    });
+
+    toast.success("Updated ✏️");
+    setEditingId("");
+    setEditText("");
+    fetchSubjects();
+  };
+
+  // ---------------- MANUAL AI BUTTON ----------------
+  const generateAIPlan = async () => {
+    if (subjects.length === 0) {
+      toast.error("Add subjects first");
+      return;
+    }
+
+    try {
+      setAiLoading(true);
+
+      const res = await axios.post("/api/ai", {
+        subjects: subjects.map((s) => s.name),
+      });
+
+      const plans = res.data.result
+        .split("\n")
+        .filter((line: string) => line.trim() !== "")
+        .map((line: string) => line.replace(/^\d+\.\s*/, ""));
+
+      setAiPlan(plans);
+
+      toast.success("AI Plan Ready 🤖");
+    } catch {
+      const fallback = subjects.map(
+        (s, i) => `${s.name}: Study ${i + 1} hours daily`
+      );
+      setAiPlan(fallback);
+
+      toast("Using basic plan ⚡");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // ---------------- SAVE FULL PLAN ----------------
+  const saveFullPlan = () => {
+    if (aiPlan.length === 0) return;
+
+    const updated = [...savedPlans, aiPlan];
+    setSavedPlans(updated);
+    localStorage.setItem("savedPlans", JSON.stringify(updated));
+
+    toast.success("Plan Saved 📌");
+  };
+
+  const deleteSavedPlan = (index: number) => {
+    const updated = savedPlans.filter((_, i) => i !== index);
+    setSavedPlans(updated);
+    localStorage.setItem("savedPlans", JSON.stringify(updated));
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div
+      className={`min-h-screen flex flex-col items-center p-6 transition ${
+        darkMode
+          ? "bg-gray-900 text-white"
+          : "bg-gradient-to-br from-blue-100 to-purple-200 text-black"
+      }`}
+    >
+      {/* DARK MODE BUTTON */}
+      <button
+        onClick={() => setDarkMode(!darkMode)}
+        className="fixed top-6 right-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-full shadow-lg"
+      >
+        {darkMode ? "☀️ Light" : "🌙 Dark"}
+      </button>
+
+      {/* TITLE */}
+      <h1 className="text-5xl font-extrabold mb-6 text-center">
+        AI Smart Study Planner 🚀
+      </h1>
+
+      <p className="text-gray-600 text-center max-w-md mb-6">
+        Plan your subjects intelligently using AI-powered study strategies.
+      </p>
+
+      {/* INPUT */}
+      <div className="bg-white dark:bg-gray-800 text-black dark:text-white p-6 rounded-xl shadow-lg w-full max-w-md">
+        <input
+          type="text"
+          placeholder="Enter subject..."
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          className="w-full p-3 border rounded mb-4 text-black"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        <button
+          onClick={addSubject}
+          className="w-full bg-blue-600 text-white p-3 rounded-lg"
+        >
+          {loading ? "Adding..." : "Add Subject"}
+        </button>
+
+        <button
+          onClick={generateAIPlan}
+          className="w-full mt-3 bg-purple-600 text-white p-3 rounded-lg"
+        >
+          {aiLoading ? "Generating..." : "Generate AI Plan 🤖"}
+        </button>
+      </div>
+
+      {/* SUBJECT LIST */}
+      <div className="mt-8 w-full max-w-md">
+        {subjects.map((sub: any) => (
+          <motion.div
+            key={sub._id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 text-black dark:text-white p-4 rounded-xl shadow mb-3 flex justify-between items-center"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {editingId === sub._id ? (
+              <>
+                <input
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="border p-2 rounded mr-2 w-full text-black"
+                />
+                <button
+                  onClick={updateSubject}
+                  className="bg-green-500 text-white px-3 py-1 rounded"
+                >
+                  Save
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="flex items-center gap-2">
+                  <FaBook /> {sub.name}
+                </span>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => startEdit(sub)}
+                    className="bg-yellow-400 text-white px-3 py-1 rounded"
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={() => deleteSubject(sub._id)}
+                    className="bg-red-500 text-white px-3 py-1 rounded"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </motion.div>
+        ))}
+      </div>
+
+      {/* AI PLAN */}
+      {aiPlan.length > 0 && (
+        <div className="mt-10 w-full max-w-md">
+          <h2 className="text-xl font-bold mb-4 text-purple-400">
+            🤖 Smart Study Plan
+          </h2>
+
+          <div className="bg-white dark:bg-gray-800 text-black dark:text-white p-4 rounded-lg shadow">
+            {aiPlan.map((item, index) => (
+              <div key={index} className="mb-2">
+                • {item}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={saveFullPlan}
+              className="bg-green-600 text-white px-4 py-2 rounded w-full"
+            >
+              Save Full Plan 📌
+            </button>
+
+            <button
+              onClick={() => {
+                setAiPlan([]);
+                localStorage.removeItem("currentPlan");
+              }}
+              className="bg-red-500 text-white px-4 py-2 rounded w-full"
+            >
+              Clear
+            </button>
+          </div>
         </div>
-      </main>
+      )}
+
+      {/* SAVED PLANS */}
+      {savedPlans.length > 0 && (
+        <div className="mt-10 w-full max-w-md">
+          <h2 className="text-xl font-bold mb-4 text-green-400">
+            📌 Saved Plans
+          </h2>
+
+          {savedPlans.map((plan, index) => (
+            <div
+              key={index}
+              className="bg-white dark:bg-gray-800 text-black dark:text-white p-4 rounded-lg shadow mb-4"
+            >
+              {plan.map((item, i) => (
+                <div key={i} className="mb-1">
+                  • {item}
+                </div>
+              ))}
+
+              <button
+                onClick={() => deleteSavedPlan(index)}
+                className="mt-2 bg-red-500 text-white px-3 py-1 rounded"
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <footer className="mt-10 text-sm">
+        Built by <b>Bhavana Seelam</b>
+      </footer>
     </div>
   );
 }
