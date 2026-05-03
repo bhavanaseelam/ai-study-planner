@@ -171,6 +171,10 @@ export default function Home() {
         AI Smart Study Planner 🚀
       </h1>
 
+      <p className="text-gray-600 text-center max-w-md mb-6">
+        Plan your subjects intelligently using AI-powered study strategies.
+      </p>
+
       {/* INPUT */}
       <div className="bg-white dark:bg-gray-800 text-black dark:text-white p-6 rounded-xl shadow-lg w-full max-w-md">
         <input
