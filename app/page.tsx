@@ -44,33 +44,7 @@ export default function Home() {
     }
   }, [subjects]);
 
-  // ---------------- AUTO GENERATE PLAN WHEN SUBJECTS CHANGE ----------------
-  useEffect(() => {
-    const autoGenerate = async () => {
-      if (subjects.length === 0) return;
-
-      try {
-        const res = await axios.post("/api/ai", {
-          subjects: subjects.map((s) => s.name),
-        });
-
-        const plans = res.data.result
-          .split("\n")
-          .filter((line: string) => line.trim() !== "")
-          .map((line: string) => line.replace(/^\d+\.\s*/, ""));
-
-        setAiPlan(plans);
-      } catch {
-        const fallback = subjects.map(
-          (s, i) => `${s.name}: Study ${i + 1} hours daily`
-        );
-        setAiPlan(fallback);
-      }
-    };
-
-    autoGenerate();
-  }, [subjects]);
-
+  
   // ---------------- SAVE CURRENT PLAN ----------------
   useEffect(() => {
     if (aiPlan.length > 0) {
@@ -196,10 +170,6 @@ export default function Home() {
       <h1 className="text-5xl font-extrabold mb-6 text-center">
         AI Smart Study Planner 🚀
       </h1>
-
-      <p className="text-gray-600 text-center max-w-md mb-6">
-        Plan your subjects intelligently using AI-powered study strategies.
-      </p>
 
       {/* INPUT */}
       <div className="bg-white dark:bg-gray-800 text-black dark:text-white p-6 rounded-xl shadow-lg w-full max-w-md">
